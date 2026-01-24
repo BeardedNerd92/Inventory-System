@@ -22,27 +22,41 @@ function handleFormData(e) {
         name: productNameData,
         quantity: quantityData
     });
+    saveListItems();
     renderListItems();
-    deleteListItem();
     productName.value = "";
     quantity.value = "";
     productName.focus();
 }
 
+function removeListItem(index) {
+    inventory.splice(index, 1);
+    saveListItems();
+    renderListItems();
+}
+
+function saveListItems() {
+    localStorage.setItem("Inventory", JSON.stringify(inventory))
+}
+
 function renderListItems() {
      inventoryList.innerHTML = "";
-     inventory.forEach((item) => {
+     inventory.forEach((item, index) => {
         const li = document.createElement("li");
-        li.textContent = `${item.name} - ${item.quantity}`
+        const text = document.createElement("span");
+        const deleteBtn = document.createElement("button");
+        text.textContent = `${item.name} - ${item.quantity}`
+        deleteBtn.textContent = "Delete Item";
+        deleteBtn.addEventListener("click", () => removeListItem(index));
+        li.appendChild(text);
+        li.appendChild(deleteBtn);
         inventoryList.appendChild(li);
      })
 }
 
-function deleteListItem() {
-    const deleteBtn = document.createElement("button");
-    deleteBtn.textContent = "Delete Item"
-    deleteBtn.addEventListener("click", () => {
-        inventory.value = "";
-    })
-    inventoryList.appendChild(deleteBtn);
+const getListItems = localStorage.getItem("Inventory");
+
+if (getListItems) {
+    inventory.push(...JSON.parse(getListItems));
+    renderListItems();
 }

@@ -1,4 +1,3 @@
-// js/inventoryRepo.js
 const STORAGE_KEY = "inventory_items_v1";
 
 function readAll() {

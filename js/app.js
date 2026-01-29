@@ -7,14 +7,31 @@ const inventoryList = document.getElementById("inventory-list")
 const LOW_STOCK_THRESHOLD = 3;
 
 form.addEventListener("submit", handleFormData);
-let inventory = listItems() ?? [];
+
+function normalizeItems(items) {
+    const byId = {};
+    const allIds = [];
+
+    for (const item of items) {
+        byId[item.id] = item;
+        allIds.push(item.id);
+    }
+    return {byId, allIds};
+}
+
+function selectInventoryList(state) {
+    return state.allIds.map(id => state.byId[id]).filter(Boolean);
+}
+
+
+let inventory = normalizeItems(listItems() ?? []);
 
 function setInventory(updater) {
     inventory = typeof updater === "function" ? updater(inventory) : updater;
-    renderListItems();
+    renderListItems(selectInventoryList(inventory));
 }
 
-function handleFormData(e) {
+async function handleFormData(e) {
     e.preventDefault();
     const name = productName.value.trim();
     const qty = Number(quantity.value); 
@@ -25,30 +42,38 @@ function handleFormData(e) {
     if (!Number.isInteger(qty) || qty < 0) {
         return;
     }
+    try {
 
-    const created = createItem({name, qty});
-    setInventory(prev => [...prev, created]);
-
-    productName.value = "";
-    quantity.value = "";
-    productName.focus();
+        const created = await createItem({name, qty});
+    
+        setInventory(prev => ({
+            byId: {...prev.byId, [created.id]: created},
+            allIds: [...prev.allIds, created.id],
+        }));
+    
+        productName.value = "";
+        quantity.value = "";
+        productName.focus();
+    } catch (err) {
+        console.error(err);
+    }
 }
 
 
 function applyLowStockThreshold(item, text, li) {
-    if (item.qty <= LOW_STOCK_THRESHOLD) {
+    if (item.qty < LOW_STOCK_THRESHOLD) {
         text.textContent += " - ⚠️ Low stock warning!";
         li.classList.add("low-stock");
     }
 }
 
-function renderListItems() {
+function renderListItems(items) {
     inventoryList.innerHTML = "";
-    if (!inventory.length) {
+    if (!items.length) {
         inventoryList.textContent = "No Inventory";
         return;
     }
-    inventory.forEach((item) => {
+    items.forEach((item) => {
         const li = document.createElement("li");
         const text = document.createElement("span");
         const deleteBtn = document.createElement("button");
@@ -59,10 +84,28 @@ function renderListItems() {
 
         deleteBtn.textContent = "Delete Item";
 
-        deleteBtn.addEventListener("click", () => {
-            removeItem(item.id);
-            setInventory(prev => prev.filter(x => x.id !== item.id));
+        deleteBtn.addEventListener("click", async () => {
+            const id = item.id;
+            try {
+                await removeItem(id);
+
+                setInventory(prev => {
+                    const nextById = {...prev.byId};
+                    delete nextById[id];
+    
+                    return {
+                        byId: nextById,
+                        allIds: prev.allIds.filter(x => x !== id),
+                    };
+                });
+
+            } catch (err) {
+                console.error(err);
+            }
+
+
         });
+
 
         li.appendChild(text);
         li.appendChild(deleteBtn);
@@ -71,4 +114,4 @@ function renderListItems() {
 }
 
 
-renderListItems();
+renderListItems(selectInventoryList(inventory));

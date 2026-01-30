@@ -4,9 +4,71 @@ const productName = document.getElementById("product-name");
 const quantity = document.getElementById("quantity");
 const form = document.getElementById("inventory-form");
 const inventoryList = document.getElementById("inventory-list")
+const errorEl = document.getElementById("inventory-error")
+const submitBtn = form.querySelector("button[type='submit']");
 const LOW_STOCK_THRESHOLD = 3;
 
 form.addEventListener("submit", handleFormData);
+
+const uiState = {
+    isSaving: false,
+    isDeleting: false,
+    error: null
+}
+
+function setUiState(patch) {
+    Object.assign(uiState, patch);
+    renderUiStatus();
+}
+
+function renderUiStatus() {
+    if (errorEl) {
+        errorEl.textContent = uiState.error ?? "";
+        errorEl.style.display = uiState.error ? "block" : "none";
+    }
+    
+    if (submitBtn) {
+        submitBtn.disabled = uiState.isSaving || uiState.isDeleting;
+    }
+    
+    const deleteBtns = inventoryList.querySelectorAll("[data-action='delete']");
+    deleteBtns.forEach(btn => {
+        btn.disabled = uiState.isSaving || uiState.isDeleting;
+    })
+}
+
+
+
+
+
+async function handleDeleteItem(id) {
+    if (uiState.isSaving || uiState.isDeleting) return;
+
+    setUiState({isDeleting: true, error: null});
+
+    try {
+
+        await removeItem(id);
+
+        setInventory(prev => {
+
+            const { [id]: _removed, ...restById } = prev.byId;
+    
+            return {
+                byId: restById,
+                allIds: prev.allIds.filter(exsitingId => exsitingId !== id),
+            }
+            
+
+        })
+        
+    } catch (err) {
+        setUiState({error: "Could not delete item. Please try again."});
+        console.error(err);
+    } finally {
+        setUiState({isDeleting: false});
+    }
+}
 
 function normalizeItems(items) {
     const byId = {};
@@ -36,12 +98,12 @@ async function handleFormData(e) {
     const name = productName.value.trim();
     const qty = Number(quantity.value); 
 
-    if (name === "") {
-        return;
-    }
-    if (!Number.isInteger(qty) || qty < 0) {
-        return;
-    }
+    if (name === "") return;
+    
+    if (!Number.isInteger(qty) || qty < 0)  return;
+    
+    setUiState({isSaving: true, error: null});
+
     try {
 
         const created = await createItem({name, qty});
@@ -55,7 +117,10 @@ async function handleFormData(e) {
         quantity.value = "";
         productName.focus();
     } catch (err) {
+        setUiState({error: "Could not add item. Please try again."});
         console.error(err);
+    } finally {
+        setUiState({isSaving: false});
     }
 }
 
@@ -83,35 +148,17 @@ function renderListItems(items) {
         applyLowStockThreshold(item, text, li);
 
         deleteBtn.textContent = "Delete Item";
-
-        deleteBtn.addEventListener("click", async () => {
-            const id = item.id;
-            try {
-                await removeItem(id);
-
-                setInventory(prev => {
-                    const nextById = {...prev.byId};
-                    delete nextById[id];
-    
-                    return {
-                        byId: nextById,
-                        allIds: prev.allIds.filter(x => x !== id),
-                    };
-                });
-
-            } catch (err) {
-                console.error(err);
-            }
-
-
-        });
-
+        deleteBtn.dataset.action = "delete";
+        deleteBtn.addEventListener("click", () => handleDeleteItem(item.id))
 
         li.appendChild(text);
         li.appendChild(deleteBtn);
         inventoryList.appendChild(li);
     })
+
+    renderUiStatus();
 }
 
 
 renderListItems(selectInventoryList(inventory));
+renderUiStatus();

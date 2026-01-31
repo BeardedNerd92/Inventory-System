@@ -1,4 +1,5 @@
 import {listItems, createItem, removeItem} from "./inventoryRepo.js" 
+import { assertInventoryState } from "./invariants.js";
 
 const productName = document.getElementById("product-name");
 const quantity = document.getElementById("quantity");
@@ -51,6 +52,8 @@ async function handleDeleteItem(id) {
         await removeItem(id);
 
         setInventory(prev => {
+            if (!Object.prototype.hasOwnProperty.call(prev.byId, id)) return prev;
+
 
             const { [id]: _removed, ...restById } = prev.byId;
     
@@ -90,6 +93,7 @@ let inventory = normalizeItems(listItems() ?? []);
 
 function setInventory(updater) {
     inventory = typeof updater === "function" ? updater(inventory) : updater;
+    assertInventoryState(inventory);
     renderListItems(selectInventoryList(inventory));
 }
 
@@ -109,6 +113,7 @@ async function handleFormData(e) {
         const created = await createItem({name, qty});
     
         setInventory(prev => ({
+            
             byId: {...prev.byId, [created.id]: created},
             allIds: [...prev.allIds, created.id],
         }));
@@ -136,6 +141,7 @@ function renderListItems(items) {
     inventoryList.innerHTML = "";
     if (!items.length) {
         inventoryList.textContent = "No Inventory";
+        renderUiStatus();
         return;
     }
     items.forEach((item) => {

@@ -1,7 +1,7 @@
 import pytest
 from pathlib import Path
 
-from repo import Repo
+from inventory_repo import Repo
 
 
 @pytest.fixture

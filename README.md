@@ -51,15 +51,16 @@ Inventory data is persisted using `localStorage` and restored on page load.
 - Product names are trimmed and required
 - Quantity must be a positive integer
 - Invalid input is safely rejected
+- qty is a non-negative integer
 
 ---
 
 ## Tech Stack
 
 - HTML
-- CSS
 - Vanilla JavaScript
 - Git & GitHub
+- python server (no framework)
 - GitHub Pages (deployment)
 
 ---
@@ -70,7 +71,7 @@ Inventory data is persisted using `localStorage` and restored on page load.
 Inventory-System/
 ├── index.html
 ├── style.css
-├── app.js
+├── js/app.js
 └── README.md
 ```
 

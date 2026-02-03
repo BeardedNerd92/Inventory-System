@@ -1,79 +1,76 @@
+import copy
 import json
+import uuid
 from pathlib import Path
 
-DATA_FILE = Path("data.json")
 
-DEFAULT_STATE = {
-    "next_id": 1,
-    "items": []
-}
+class Repo:
+    def __init__(self, data_file: Path):
+        self._data_file = data_file
 
-def _ensure_data_file() -> None:
-    if not DATA_FILE.exists():
-        DATA_FILE.write_text(
-            json.dumps(DEFAULT_STATE, indent=2),
-            encoding="utf-8"
+    def _default_state(self) -> dict:
+        return {"items": []}
+
+    def _ensure_data_file(self) -> None:
+        if not self._data_file.exists():
+            self._data_file.write_text(
+                json.dumps(self._default_state(), indent=2),
+                encoding="utf-8",
+            )
+            return
+
+        raw = self._data_file.read_text(encoding="utf-8").strip()
+        if raw == "":
+            self._data_file.write_text(
+                json.dumps(self._default_state(), indent=2),
+                encoding="utf-8",
+            )
+
+    def _read_state(self) -> dict:
+        self._ensure_data_file()
+        raw = self._data_file.read_text(encoding="utf-8")
+        try:
+            data = json.loads(raw)
+        except json.JSONDecodeError:
+            data = self._default_state()
+
+        if not isinstance(data, dict):
+            data = self._default_state()
+
+        if "items" not in data or not isinstance(data["items"], list):
+            data["items"] = []
+
+        return data
+
+    def _write_state(self, state: dict) -> None:
+        self._data_file.write_text(
+            json.dumps(state, ensure_ascii=False, indent=2),
+            encoding="utf-8",
         )
-        return
-    raw = DATA_FILE.read_text(encoding="utf-8").strip()
-    if raw == "":
-        DATA_FILE.write_text(json.dumps(DEFAULT_STATE, indent=2), encoding="utf-8")
 
+    # --------
+    # API
+    # --------
 
-def _read_state() -> dict:
-    _ensure_data_file()
+    def list_items(self) -> list[dict]:
+        state = self._read_state()
+        return [copy.deepcopy(item) for item in state["items"]]
 
-    raw = DATA_FILE.read_text(encoding="utf-8")
-    
-    try:
-        data = json.loads(raw)
-    except json.JSONDecodeError:
-        data = DEFAULT_STATE.copy()
+    def create_item(self, name: str, qty: int) -> dict:
+        if not isinstance(qty, int) or qty < 0:
+            raise ValueError("qty must be a non-negative integer")
 
-    if not isinstance(data, dict):
-        data = DEFAULT_STATE.copy()
-    
-    if "next_id" not in data or not isinstance(data["next_id"], int):
-         data["next_id"] = DEFAULT_STATE["next_id"]
-    if "items" not in data or not isinstance(data["items"], list):
-        data["items"] = []
+        state = self._read_state()
+        item = {
+            "id": str(uuid.uuid4()),
+            "name": name,
+            "qty": qty,
+        }
+        state["items"].append(item)
+        self._write_state(state)
+        return copy.deepcopy(item)
 
-    return data
-    
-
-def _write_state(state: dict) -> None:
-   DATA_FILE.write_text(
-       json.dumps(state, ensure_ascii=False, indent=2),
-       encoding="utf-8"
-   )
-
-def list_items() -> list[dict]:
-    state = _read_state()
-    return state["items"]
-
-
-def create_item(name: str, qty: int) -> dict:
-    state = _read_state()
-
-    new_item = {
-        "id": state["next_id"],
-        "name": name,
-        "qty": qty
-    }
-
-    state["next_id"] += 1
-    state["items"].append(new_item)
-    _write_state(state)
-    return new_item
-
-def delete_item(item_id: int) -> bool:
-    state = _read_state()
-    before = len(state["items"])
-
-    state["items"] = [item for item in state["items"] if item.get("id") != item_id]
-    removed = len(state["items"]) != before
-
-    if removed:
-        _write_state(state)
-
-    return removed
+    def delete_item(self, item_id: str) -> None:
+        state = self._read_state()
+        state["items"] = [i for i in state["items"] if i.get("id") != item_id]
+        self._write_state(state)
